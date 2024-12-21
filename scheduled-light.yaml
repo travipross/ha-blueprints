@@ -1,0 +1,34 @@
+blueprint:
+  name: Scheduled Lighting Toggle
+  description: Toggle the state of a given light (or lights) based on a schedule helper
+  domain: automation
+  author: travipross
+  homeassistant:
+    min_version: 2022.9.0
+  input:
+    schedule_helper:
+      name: Schedule (Helper)
+      description: The Schedule Entity used to control on/off behaviour of the light
+      selector:
+        entity:
+          filter:
+            - domain: schedule
+    target_light:
+      name: Target Light
+      description: The Light Entity controlled via schedule
+      selector:
+        target:
+          entity:
+            - domain: light
+triggers:
+  - trigger: state
+    entity_id: !input schedule_helper
+actions:
+  - action: |
+      {% if trigger.to_state.state == "on" %}
+        light.turn_on
+      {% else %}
+        light.turn_off
+      {% endif %}
+    target: !input target_light
+mode: single
