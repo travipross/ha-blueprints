@@ -1,0 +1,105 @@
+blueprint:
+  name: Lutron Caseta Pico Remote (Momentary)
+  description: Perform specific actions based on button presses on a Lutron Caseta Pico Remote
+  domain: automation
+  author: travipross
+  input:
+    remote_device_id:
+      name: Remote
+      description: The Lutron Caseta Pico Remote to monitor
+      selector:
+        device:
+          filter:
+            - integration: lutron_caseta
+              manufacturer: Lutron Electronics Co., Inc
+              model: PJ2-3BRL-GXX-X01 (Pico3ButtonRaiseLower)
+    on_action:
+      name: On Button Action
+      description: The action to perform when the "On" button is pressed
+      default: []
+      selector:
+        action: {}
+    off_action:
+      name: Off Button Action
+      description: The action to perform when the "Off" button is pressed
+      default: []
+      selector:
+        action: {}
+    up_action:
+      name: Raise Button Action
+      description: The action to perform when the "Raise" button is pressed
+      default: []
+      selector:
+        action: {}
+    down_action:
+      name: Lower Button Action
+      description: The action to perform when the "Lower" button is pressed
+      default: []
+      selector:
+        action: {}
+    favourite_action:
+      name: Favourite Button Action
+      description: The action to perform when the "Favourite" button is pressed
+      default: []
+      selector:
+        action: {}
+triggers:
+  - device_id: !input remote_device_id
+    domain: lutron_caseta
+    type: press
+    subtype: "on"
+    trigger: device
+    id: on_button
+  - device_id: !input remote_device_id
+    domain: lutron_caseta
+    type: press
+    subtype: "off"
+    trigger: device
+    id: off_button
+  - device_id: !input remote_device_id
+    domain: lutron_caseta
+    type: press
+    subtype: raise
+    trigger: device
+    id: up_button
+  - device_id: !input remote_device_id
+    domain: lutron_caseta
+    type: press
+    subtype: lower
+    trigger: device
+    id: down_button
+  - device_id: !input remote_device_id
+    domain: lutron_caseta
+    type: press
+    subtype: stop
+    trigger: device
+    id: favourite_button
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - on_button
+        sequence: !input on_action
+      - conditions:
+          - condition: trigger
+            id:
+              - off_button
+        sequence: !input off_action
+      - conditions:
+          - condition: trigger
+            id:
+              - up_button
+        sequence: !input up_action
+      - conditions:
+          - condition: trigger
+            id:
+              - down_button
+        sequence: !input down_action
+      - conditions:
+          - condition: trigger
+            id:
+              - favourite_button
+        sequence: !input favourite_action
+mode: single
