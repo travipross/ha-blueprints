@@ -1,0 +1,115 @@
+blueprint:
+  name: Inovelli Red Series Switch (LZW31-SN - ZWave-JS)
+  description: Create automations based on button presses of the Inovelli Red Series LZW31-SN Switch.
+  domain: automation
+  input:
+    zwave_device:
+      name: Inovelli Switch
+      description: List of available Inovelli LZW31-SN switches.
+      selector:
+        device:
+          integration: zwave_js
+          manufacturer: Inovelli
+          model: LZW31-SN
+          multiple: true
+    button_config:
+      name: Config Press 1x
+      description: Action to run when the config button is pressed once.
+      default: []
+      selector:
+        action: {}
+    button_up:
+      name: Up Press 1x
+      description: Action to run when the Up button is pressed once.
+      default: []
+      selector:
+        action: {}
+    button_down:
+      name: Down Press 1x
+      description: Action to run when the Down button is pressed once.
+      default: []
+      selector:
+        action: {}
+    button_up2:
+      name: Up Press 2x
+      description: Action to run when the Up button is pressed twice.
+      default: []
+      selector:
+        action: {}
+    button_down2:
+      name: Down Press 2x
+      description: Action to run when the Down button is pressed twice.
+      default: []
+      selector:
+        action: {}
+    button_up3:
+      name: Up Press 3x
+      description: Action to run when the up button is pressed three times.
+      default: []
+      selector:
+        action: {}
+    button_down3:
+      name: Down Press 3x
+      description: Action to run when the Down button is pressed three times.
+      default: []
+      selector:
+        action: {}
+    button_up4:
+      name: Up Press 4x
+      description: Action to run when the Up button is pressed four times.
+      default: []
+      selector:
+        action: {}
+    button_down4:
+      name: Down Press 4x
+      description: Action to run when the Down button is pressed four times.
+      default: []
+      selector:
+        action: {}
+    button_up5:
+      name: Up Press 5x
+      description: Action to run when the Up button is pressed five times.
+      default: []
+      selector:
+        action: {}
+    button_down5:
+      name: Down Press 5x
+      description: Action to run when the Down button is pressed five times.
+      default: []
+      selector:
+        action: {}
+mode: single
+max_exceeded: silent
+variables:
+  device_id: !input 'zwave_device'
+trigger:
+  - platform: event
+    event_type: zwave_js_value_notification
+condition: '{{ trigger.event.data.device_id in device_id }}'
+action:
+  - variables:
+      button_id: '{{ trigger.event.data.property_key_name }}'
+      press_count: '{{ trigger.event.data.value }}'
+  - choose:
+      - conditions: '{{ button_id == "003" and press_count == "KeyPressed" }}'
+        sequence: !input 'button_config'
+      - conditions: '{{ button_id == "002" and press_count == "KeyPressed" }}'
+        sequence: !input 'button_up'
+      - conditions: '{{ button_id == "001" and press_count == "KeyPressed" }}'
+        sequence: !input 'button_down'
+      - conditions: '{{ button_id == "002" and press_count == "KeyPressed2x" }}'
+        sequence: !input 'button_up2'
+      - conditions: '{{ button_id == "001" and press_count == "KeyPressed2x" }}'
+        sequence: !input 'button_down2'
+      - conditions: '{{ button_id == "002" and press_count == "KeyPressed3x" }}'
+        sequence: !input 'button_up3'
+      - conditions: '{{ button_id == "001" and press_count == "KeyPressed3x" }}'
+        sequence: !input 'button_down3'
+      - conditions: '{{ button_id == "002" and press_count == "KeyPressed4x" }}'
+        sequence: !input 'button_up4'
+      - conditions: '{{ button_id == "001" and press_count == "KeyPressed4x" }}'
+        sequence: !input 'button_down4'
+      - conditions: '{{ button_id == "002" and press_count == "KeyPressed5x" }}'
+        sequence: !input 'button_up5'
+      - conditions: '{{ button_id == "001" and press_count == "KeyPressed5x" }}'
+        sequence: !input 'button_down5'
