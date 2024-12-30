@@ -1,0 +1,195 @@
+blueprint:
+  name: IKEA 5 Button Remote - Light (Dimmable)
+  description: Create automations based on IKEA 5-button Remote (ZHA - Model E1810)
+  domain: automation
+  author: travipross
+  input:
+    remote_device_id:
+      name: Remote
+      description: The IKEA 5 Button Remote to use
+      selector:
+        device:
+          integration: zha
+          manufacturer: IKEA of Sweden
+          model: TRADFRI remote control
+    light_entity_id:
+      name: Light
+      description: The light to control with the up/down buttons
+      selector:
+        entity:
+          domain: light
+    middle_button_action:
+      name: Middle Button Action
+      description: Action to run when the middle button is pressed
+      default: []
+      selector:
+        action: {}
+    left_button_action:
+      name: Left Button Action
+      description: Action to run when the left button is pressed
+      default: []
+      selector:
+        action: {}
+    right_button_action:
+      name: Right Button Action
+      description: Action to run when the right button is pressed
+      default: []
+      selector:
+        action: {}
+    step_pct:
+      name: Step Percentage
+      description: The percentage to adjust the brightness by on each iteration while long-pressed
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 50
+          unit_of_measurement: "%"
+    step_duration:
+      name: Step Duration
+      description: The duration to wait between each iteration while long-pressed
+      default: 150
+      selector:
+        number:
+          min: 1
+          max: 1000
+          unit_of_measurement: "ms"
+triggers:
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_short_press
+    subtype: turn_on
+    trigger: device
+    id: press_middle
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_short_press
+    subtype: dim_up
+    trigger: device
+    id: press_up
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_long_press
+    subtype: dim_up
+    trigger: device
+    id: hold_up
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_long_release
+    subtype: dim_up
+    trigger: device
+    id: release_up
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_short_press
+    subtype: dim_down
+    trigger: device
+    id: press_down
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_long_press
+    subtype: dim_down
+    trigger: device
+    id: hold_down
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_long_release
+    subtype: dim_down
+    trigger: device
+    id: release_down
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_short_press
+    subtype: left
+    trigger: device
+    id: press_left
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_long_press
+    subtype: left
+    trigger: device
+    id: hold_left
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_short_press
+    subtype: right
+    trigger: device
+    id: press_right
+  - device_id: !input remote_device_id
+    domain: zha
+    type: remote_button_long_press
+    subtype: right
+    trigger: device
+    id: hold_right
+variables:
+  step_pct: !input step_pct
+  step_duration: !input step_duration
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - press_up
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id: !input light_entity_id
+      - conditions:
+          - condition: trigger
+            id:
+              - press_down
+        sequence:
+          - action: light.turn_off
+            target:
+              entity_id: !input light_entity_id
+      - conditions:
+          - condition: trigger
+            id:
+              - hold_up
+        sequence:
+          - repeat:
+              sequence:
+                - delay:
+                    milliseconds: "{{ step_duration }}"
+                - action: light.turn_on
+                  data:
+                    brightness_step_pct: "{{ step_pct }}"
+                  target:
+                    entity_id: !input light_entity_id
+              while:
+                - condition: template
+                  value_template: "{{ repeat.index <= 100//step_pct }}"
+      - conditions:
+          - condition: trigger
+            id:
+              - hold_down
+        sequence:
+          - repeat:
+              sequence:
+                - delay:
+                    milliseconds: "{{ step_duration }}"
+                - action: light.turn_on
+                  data:
+                    brightness_step_pct: "{{ -step_pct }}"
+                  target:
+                    entity_id: !input light_entity_id
+              while:
+                - condition: template
+                  value_template: "{{ repeat.index <= 100//step_pct }}"
+      - conditions:
+          - condition: trigger
+            id:
+              - press_left
+        sequence: !input left_button_action
+      - conditions:
+          - condition: trigger
+            id:
+              - press_right
+        sequence: !input right_button_action
+      - conditions:
+          - condition: trigger
+            id:
+              - press_middle
+        sequence: !input middle_button_action
+mode: restart
