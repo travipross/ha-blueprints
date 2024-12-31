@@ -1,0 +1,169 @@
+description: Sends notification to mobile app
+alias: Notify Mobile App
+mode: queued
+fields:
+  notify_service:
+    name: Recipient(s)
+    description: >
+      Sets the appropriate `notify` service corresponding to the selection (can
+      be individual device or notification group). 
+
+
+      Custom entries can be provided to call arbitrary `notify.<custom_entry>`
+      services. 
+
+
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#sending-notifications-to-multiple-devices
+    required: true
+    selector:
+      select:
+        mode: dropdown
+        custom_value: true
+        options:
+          - label: Travis
+            value: travis_phones_group
+          - label: Emma
+            value: emma_phones_group
+          - label: Travis & Emma
+            value: travis_and_emma_s_phones
+  title:
+    name: Notification Title
+    description: Title of the notification
+    required: true
+    selector:
+      text: {}
+  message:
+    name: Notification Body
+    required: true
+    example: This is a notification message
+    description: Body of notification to be sent to mobile device
+    selector:
+      text: {}
+  image:
+    name: Notification Image
+    description: >-
+      https://companion.home-assistant.io/docs/notifications/notification-attachments#image-entities
+    selector:
+      text: {}
+  subject:
+    name: Notification Subject
+    description: >-
+      A subject may take the place of longer content (more than 6 lines).
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#subtitle--subject
+    selector:
+      text: {}
+  group:
+    name: Notification Group
+    description: >-
+      Combine notifications together visually.
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#grouping
+    selector:
+      text: {}
+  clickAction:
+    name: Click Action
+    description: >-
+      Action to take place upon tapping notification.
+      https://companion.home-assistant.io/docs/notifications/notifications-basic?_highlight=clickaction#opening-a-url
+    selector:
+      text: {}
+  actions:
+    name: Actions List (Buttons)
+    description: >-
+      https://companion.home-assistant.io/docs/notifications/actionable-notifications
+    selector:
+      object: {}
+  notification_icon:
+    name: Notification Icon
+    description: >-
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#notification-icon
+    selector:
+      text: {}
+  color:
+    name: Notification Color
+    description: >-
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#notification-color
+    example: red
+    selector:
+      color_rgb: {}
+  tag:
+    name: Notification Tag
+    description: >-
+      Unique identifier for notification. Subsequent notifications with same tag
+      will replace previous ones.
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#replacing
+    default: GENERIC_NOTIFY
+    selector:
+      text: {}
+  channel:
+    name: Notification Channel
+    required: true
+    description: >-
+      Category of notification. Can override with custom value
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#notification-channels
+    default: General
+    selector:
+      select:
+        custom_value: true
+        mode: dropdown
+        options:
+          - Camera
+          - Chore
+          - Door
+          - Emergency
+          - General
+  sticky:
+    name: Sticky?
+    description: >-
+      Keep notification active after tapping.
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#sticky-notification
+    default: false
+    selector:
+      boolean: {}
+  persistent:
+    name: Persistent?
+    description: >-
+      Disallow notification from being dismissed.
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#persistent-notification
+    selector:
+      boolean: {}
+    default: false
+  critical:
+    name: Critical?
+    description: >-
+      Sets ttl=0, priority=high for immediate delivery.
+      https://companion.home-assistant.io/docs/notifications/critical-notifications
+    default: false
+    selector:
+      boolean: {}
+  alert_once:
+    name: Alert Once?
+    description: >-
+      Only trigger sound/vibration/LED on receiving device for the first
+      instance (allows dynamic updating).
+      https://companion.home-assistant.io/docs/notifications/notifications-basic#alert-once
+    default: false
+    selector:
+      boolean: {}
+sequence:
+  - variables:
+      action_data:
+        title: "{{ title }}"
+        message: "{{ message }}"
+        data:
+          image: "{{ image }}"
+          tag: "{{ tag }}"
+          sticky: "{{ sticky }}"
+          persistent: "{{ persistent }}"
+          clickAction: "{{ clickAction }}"
+          actions: "{{ actions }}"
+          notification_icon: "{{ notification_icon }}"
+          color: "{{ color }}"
+          channel: "{{ channel }}"
+          group: "{{ group }}"
+          subtitle: "{{ subtitle }}"
+          ttl: "{{  0 if critical else '' }}"
+          priority: "{{ 'high' if critical else 'normal' }}"
+          alert_once: "{{ alert_once }}"
+  - action: notify.{{ notify_service }}
+    metadata: {}
+    data: "{{ action_data }}"
