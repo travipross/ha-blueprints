@@ -1,0 +1,475 @@
+blueprint:
+  name: Snoozeable Vacuum Schedule with Notifications
+  description: |
+    ## Description
+    Automates vacuum scheduling via a [shedule helper entity](https://www.home-assistant.io/integrations/schedule/) and notifications, allowing control via notifications to pause, resume, snooze, or dock the vacuum.
+
+    Notification functionality is triggered by vacuum state directly, so that changes made outside of this automation will still be reflected in the notifications. 
+    
+    This blueprint also includes a snooze feature to temporarily pause the vacuum for a specified duration.
+
+    Tested on Shark RV1000A with the official SharkIQ integration.
+    
+    ## Features
+    - Start vacuuming when a schedule is triggered
+    - Send notifications when the vacuum is cleaning, paused, or returning to dock
+    - Pause, resume, snooze, or dock the vacuum from a notification
+    - Snooze the vacuum for a specified duration based on an input_number helper
+    - Automatically clear notifications when the vacuum is docked
+
+    ## Requirements
+    - A vacuum entity
+    - A schedule entity
+    - A timer entity
+    - A notify service
+    - (Optional) An input_boolean to enable/disable the schedule
+    - (Optional) An input_number helper to dynamically set the snooze duration
+
+    ## More Information
+    ### Triggering the Vacuum
+    The vacuum will start when the schedule is triggered, unless the input_boolean to enable the schedule is set to off. This can be used to disable the schedule while preserving the notification functionality of the automation.
+
+    This blueprint will also still provide mobile app notifications when the vacuum is paused, snoozed, or returning to the dock, regardless of the source of the action.
+
+    ### Snoozing the Vacuum
+    If the vacuum needs to be temporarily paused, this blueprint allows the vacuum to be snoozed for a specified duration using a timer entity. Starting the timer will stop the vacuum, while finishing the timer will resume the vacuum. By either resuming, pausing, or returning to the dock (via any trigger, manual or otherwise), the vacuum will cancel the snooze timer.
+
+    The vacuum can be snoozed for a specified duration either by setting the snooze_duration_default or by using an input_number helper to dynamically set the snooze duration. The snooze duration is in minutes and will be converted to seconds for the timer.
+
+    The snooze duration can either be set to a fixed value when configuring the automation or by using an input_number helper to dynamically set the snooze duration. The input helper, if provided, will take precedence over the default snooze duration set in the blueprint input.
+
+    ### Notifications
+    In order to send notifications you must provicde a notify service to call. This typically will be notify.mobile_app_<device_name> for mobile app notifications. It is recommended to make use of [Notify Groups](https://www.home-assistant.io/integrations/group/#notify-groups) to send to multiple devices, or to insulate against breaking changes in the future by simply updating the groups as devices change over time.
+
+    Notifications are sent when the vacuum is cleaning, paused, or returning to the dock. The notification will include actions to pause, resume, snooze, or dock the vacuum depending on the current state. The notification tag can be set to avoid conflicts with other notifications, while updating existing notifications that may already exist on the given device.
+
+    The blueprint sends notifications that are both persistent and sticky, meaning they will remain on the device until manually dismissed. The notification will also include a clickAction to open the vacuum entity in the Home Assistant app. See the docs for [persistent](https://companion.home-assistant.io/docs/notifications/notifications-basic/#persistent-notification) and [sticky](https://companion.home-assistant.io/docs/notifications/notifications-basic/#sticky-notification) notifications for more information.
+
+    A unique tag per automation should be used so that a given notification can be both updated and avoid conflicts with other vacuums. By default, the tag will inlude the vacuum entity id (without the domain) in order to provide uniqueness. This can be overridden by setting the notify_tag input. See [here](https://companion.home-assistant.io/docs/notifications/notifications-basic#replacing) for more information on replacing notification content.
+
+    The persistent notification is cleared automatically when the vacuum returns to a docked state.
+
+    ### Pausing
+    A note on pausing: this automation calls `vacuum.stop` instead of `vacuum.pause`. This is because some vacuums do not support pausing and will instead stop the vacuum and return it to the dock.
+
+  domain: automation
+  author: travipross
+  homeassistant:
+    min_version: 2024.6.0
+  input:
+    vacuum_entity_id:
+      name: Vacuum to Control
+      description: The vacuum entity to control
+      selector:
+        entity:
+          domain: vacuum
+    snooze_duration_default:
+      name: Snooze Duration (Minutes)
+      description: The default snooze duration in minutes. Will be overridden by the snooze_duration_helper if set.
+      selector:
+        number:
+          min: 5
+          max: 120
+          unit_of_measurement: min
+      default: 30
+    snooze_timer:
+      name: Snooze Timer Entity
+      description: The timer entity to use for snoozing the vacuum
+      selector:
+        entity:
+          domain: timer
+    schedule:
+      name: Schedule
+      description: The schedule entity to trigger the vacuum. Trigger will activate at the beginning of the scheduled event(s).
+      selector:
+        entity:
+          domain: schedule
+    notify_service:
+      name: Notify Service Name
+      description: The service to use for notifications, I.e. notify.<service_name>. **Do not include the `notify.` prefix**.
+      selector:
+        text:
+    advanced:
+      name: Advanced/Optional Settings
+      icon: mdi:cog
+      description: These settings are optional and can be left blank if not needed.
+      collapsed: true
+      input:
+        enable_schedule:
+          name: Enable Schedule Helper (Optional)
+          description: The input_boolean to enable/disable the scheduled cleaning. This can be used to disable the schedule while preserving the notification functionality of the automation.
+          selector:
+            entity:
+              domain: input_boolean
+          default: []
+        snooze_duration_helper:
+          name: Snooze Duration Helper (Optional)
+          description: A helper input_number to set the snooze duration in minutes. This overrides the snooze_duration_default.
+          selector:
+            entity:
+              domain: input_number
+          default: []
+        notify_tag:
+          name: Notify Tag (Optional)
+          description: The tag to use for notifications. See [here](https://companion.home-assistant.io/docs/notifications/notifications-basic#replacing) for more information. Consider using templates with unique identifiers to avoid conflicts with other notifications.
+          default: ""
+          selector:
+            text:
+trigger_variables:
+  vacuum_entity_id: !input vacuum_entity_id
+  vacuum_entity_id_stripped: "{{ vacuum_entity_id | regex_replace(find='^vacuum\\.', replace='') }}"
+  helper_schedule: !input schedule
+  helper_schedule_enable: !input enable_schedule
+  snooze_timer: !input snooze_timer
+triggers:
+  - alias: "Schedule: cleaning event started"
+    trigger: state
+    entity_id:
+      - !input schedule
+    to: "on"
+    id: schedule_start
+  - alias: "Snooze timer: started"
+    trigger: event
+    event_type: timer.started
+    event_data:
+      entity_id: !input snooze_timer
+    id: snooze_started
+  - alias: "Snooze timer: finished"
+    trigger: event
+    event_type: timer.finished
+    event_data:
+      entity_id: !input snooze_timer
+    id: snooze_finished
+  - alias: "Notification action: \"Snooze\" received"
+    trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: snooze-{{ vacuum_entity_id_stripped }}
+    id: action_snooze
+  - alias: "Notification action: \"Dock\" received"
+    trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: dock-{{ vacuum_entity_id_stripped }}
+    id: action_dock
+  - alias: "Notification action: \"Pause\" received"
+    trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: pause-{{ vacuum_entity_id_stripped }}
+    id: action_pause
+  - alias: "Notification action: \"Resume\" received"
+    trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: resume-{{ vacuum_entity_id_stripped }}
+    id: action_resume
+  - alias: "Vacuum state: became docked"
+    trigger: state
+    entity_id:
+      - !input vacuum_entity_id
+    to: docked
+    id: vacuum_docked
+  - alias: "Vacuum state: began cleaning"
+    trigger: state
+    entity_id:
+      - !input vacuum_entity_id
+    to: cleaning
+    id: vacuum_started
+  - alias: "Vacuum state: became idle"
+    trigger: state
+    entity_id:
+      - !input vacuum_entity_id
+    to: idle
+    id: vacuum_idle
+  - alias: "Vacuum state: became returning to dock"
+    trigger: state
+    entity_id:
+      - !input vacuum_entity_id
+    to: returning
+    id: vacuum_returning
+conditions: []
+actions:
+  - variables:
+      vacuum_entity_id: !input vacuum_entity_id
+      vacuum_entity_id_stripped: "{{ vacuum_entity_id | regex_replace(find='^vacuum\\.', replace='') }}"
+      vacuum_friendly_name: "{{ state_attr(vacuum_entity_id, 'friendly_name') }}"
+      helper_schedule: !input schedule
+      helper_schedule_enable: !input enable_schedule
+      snooze_duration_helper: !input snooze_duration_helper
+      snooze_duration_default: !input snooze_duration_default
+      snooze_duration: "{% if snooze_duration_helper %}{{ states(snooze_duration_helper) | int * 60}}{% else %}{{ snooze_duration_default * 60 }}{% endif %}"
+      snooze_timer: !input snooze_timer
+      notify_service: !input notify_service
+      notify_tag_input: !input notify_tag
+      notify_tag: "{% if notify_tag_input %}{{ notify_tag_input }}{% else %}vacuum-{{ vacuum_entity_id_stripped }}{% endif %}"
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - schedule_start
+              - snooze_finished
+              - action_resume
+        sequence:
+          - condition: not
+            conditions:
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id:
+                      - schedule_start
+                  - condition: template
+                    value_template: "{{ states(helper_schedule_enable) == 'off' }}"
+          - action: vacuum.start
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ vacuum_entity_id }}"
+      - conditions:
+          - condition: trigger
+            id:
+              - snooze_started
+        sequence:
+          - action: vacuum.stop
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ vacuum_entity_id }}"
+      - conditions:
+          - condition: trigger
+            id:
+              - vacuum_started
+        sequence:
+          - action: timer.cancel
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ snooze_timer }}"
+          - action: notify.{{ notify_service}}
+            metadata: {}
+            data:
+              title: "{{ vacuum_friendly_name }} Cleaning"
+              message: Vacuum has started cleaning
+              data:
+                ttl: 0
+                priority: high
+                actions:
+                  - action: pause-{{ vacuum_entity_id_stripped }}
+                    title: Pause
+                  - action: snooze-{{ vacuum_entity_id_stripped }}
+                    title: Snooze
+                  - action: dock-{{ vacuum_entity_id_stripped }}
+                    title: Dock
+                tag: "{{ notify_tag }}"
+                sticky: true
+                persistent: true
+                notification_icon: mdi:robot-vacuum
+                clickAction: entityId:{{ vacuum_entity_id }}
+            alias: Send "Running" notification
+      - conditions:
+          - condition: trigger
+            id:
+              - vacuum_idle
+        sequence:
+          - action: notify.{{ notify_service}}
+            metadata: {}
+            data:
+              title: >-
+                {{ vacuum_friendly_name }} {% if states(snooze_timer) ==
+                'active' %}Snoozed{% else %}Paused{% endif %}
+              message: >
+                {% if states(snooze_timer) == "active" %}
+
+                Vacuum snoozed until {{ state_attr(snooze_timer,
+                'finishes_at') | as_timestamp | timestamp_custom('%I:%M %p',
+                local=true) }}
+
+                {% else %}
+
+                Vacuum paused
+
+                {% endif %}
+              data:
+                ttl: 0
+                priority: high
+                actions:
+                  - action: resume-{{ vacuum_entity_id_stripped }}
+                    title: Resume
+                  - action: >-
+                      {% if states(snooze_timer) == 'active' %}pause{%
+                      else %}snooze{% endif %}-{{ vacuum_entity_id_stripped }}
+                    title: >-
+                      {% if states(snooze_timer) == 'active' %}Pause{%
+                      else %}Snooze{% endif %}
+                  - action: dock-{{ vacuum_entity_id_stripped }}
+                    title: Dock
+                tag: "{{ notify_tag }}"
+                sticky: true
+                persistent: true
+                notification_icon: mdi:robot-vacuum
+                clickAction: entityId:{{ vacuum_entity_id }}
+            alias: Send "Paused" notification
+      - conditions:
+          - condition: trigger
+            id:
+              - vacuum_returning
+        sequence:
+          - action: timer.cancel
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ snooze_timer }}"
+          - action: notify.{{ notify_service}}
+            metadata: {}
+            data:
+              title: "{{ vacuum_friendly_name }} Returning to Dock"
+              message: Vacuum returning to docking station
+              data:
+                ttl: 0
+                priority: high
+                actions:
+                  - action: pause-{{ vacuum_entity_id_stripped }}
+                    title: Pause
+                  - action: resume-{{ vacuum_entity_id_stripped }}
+                    title: Resume
+                  - action: snooze-{{ vacuum_entity_id_stripped }}
+                    title: Snooze
+                tag: "{{ notify_tag }}"
+                sticky: true
+                persistent: true
+                notification_icon: mdi:robot-vacuum
+                clickAction: entityId:{{ vacuum_entity_id }}
+            alias: Send "Returning" notification
+      - conditions:
+          - condition: trigger
+            id:
+              - vacuum_docked
+        sequence:
+          - action: timer.cancel
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ snooze_timer }}"
+          - action: notify.{{ notify_service}}
+            metadata: {}
+            data:
+              message: clear_notification
+              data:
+                ttl: 0
+                priority: high
+                tag: "{{ notify_tag }}"
+            alias: Clear notification
+      - conditions:
+          - condition: trigger
+            id:
+              - action_dock
+        sequence:
+          - action: vacuum.return_to_base
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ vacuum_entity_id }}"
+      - conditions:
+          - condition: trigger
+            id:
+              - action_pause
+        sequence:
+          - action: timer.cancel
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ snooze_timer }}"
+          - action: vacuum.stop
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ vacuum_entity_id }}"
+          - action: notify.{{ notify_service}}
+            metadata: {}
+            data:
+              title: >-
+                {{ vacuum_friendly_name }} {% if states(snooze_timer) ==
+                'active' %}Snoozed{% else %}Paused{% endif %}
+              message: >
+                {% if states(snooze_timer) == "active" %}
+
+                Vacuum snoozed until {{ state_attr(snooze_timer,
+                'finishes_at') | as_timestamp | timestamp_custom('%I:%M %p',
+                local=true) }}
+
+                {% else %}
+
+                Vacuum paused
+
+                {% endif %}
+              data:
+                ttl: 0
+                priority: high
+                actions:
+                  - action: resume-{{ vacuum_entity_id_stripped }}
+                    title: Resume
+                  - action: >-
+                      {% if states(snooze_timer) == 'active' %}pause{%
+                      else %}snooze{% endif %}-{{ vacuum_entity_id_stripped }}
+                    title: >-
+                      {% if states(snooze_timer) == 'active' %}Pause{%
+                      else %}Snooze{% endif %}
+                  - action: dock-{{ vacuum_entity_id_stripped }}
+                    title: Dock
+                tag: "{{ notify_tag }}"
+                sticky: true
+                persistent: true
+                notification_icon: mdi:robot-vacuum
+                clickAction: entityId:{{ vacuum_entity_id }}
+            alias: Send "Paused" notification
+      - conditions:
+          - condition: trigger
+            id:
+              - action_snooze
+        sequence:
+          - action: timer.start
+            metadata: {}
+            data:
+              duration: "{{ snooze_duration }}"
+            target:
+              entity_id: "{{ snooze_timer }}"
+          - action: notify.{{ notify_service}}
+            metadata: {}
+            data:
+              title: >-
+                {{ vacuum_friendly_name }} {% if states(snooze_timer) ==
+                'active' %}Snoozed{% else %}Paused{% endif %}
+              message: >
+                {% if states(snooze_timer) == "active" %}
+
+                Vacuum snoozed until {{ state_attr(snooze_timer,
+                'finishes_at') | as_timestamp | timestamp_custom('%I:%M %p',
+                local=true) }}
+
+                {% else %}
+
+                Vacuum paused
+
+                {% endif %}
+              data:
+                ttl: 0
+                priority: high
+                actions:
+                  - action: resume-{{ vacuum_entity_id_stripped }}
+                    title: Resume
+                  - action: >-
+                      {% if states(snooze_timer) == 'active' %}pause{%
+                      else %}snooze{% endif %}-{{ vacuum_entity_id_stripped }}
+                    title: >-
+                      {% if states(snooze_timer) == 'active' %}Pause{%
+                      else %}Snooze{% endif %}
+                  - action: dock-{{ vacuum_entity_id_stripped }}
+                    title: Dock
+                tag: "{{ notify_tag }}"
+                sticky: true
+                persistent: true
+                notification_icon: mdi:robot-vacuum
+                clickAction: entityId:{{ vacuum_entity_id }}
+            alias: Send "Paused" notification
+mode: queued
+max: 5
