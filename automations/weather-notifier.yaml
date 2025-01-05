@@ -1,0 +1,201 @@
+blueprint:
+  name: Weather Forecast Alert Helper
+  description: |
+    # Weather Forecast Alert Helper
+
+    ## Description
+    This blueprint creates a weather forecast alert automation that sends a notification when the hourly weather forecast meets the specified conditions.
+
+    Do you want to be notified when the temperature drops below a certain threshold, when it's going to rain, or when it's going to snow? This blueprint allows you to set up mobile app notifications for these conditions.
+
+    ## Set-up
+    1. Create a [weather entity](https://www.home-assistant.io/integrations/weather/) in Home Assistant.
+    2. Create a [notification service integration](https://www.home-assistant.io/integrations/notify/) in Home Assistant (recommended using [Notify Groups](https://www.home-assistant.io/integrations/group/#notify-groups)).
+    3. (Optional) Create a [schedule or time helper entity](https://www.home-assistant.io/integrations/input_datetime/) in Home Assistant to trigger the automation
+       - Alternatively, you can use a time-based trigger in the automation editor.
+    4. Enable the desired alert conditions (cold, rain, snow) and set the desired thresholds to be used for each condition.
+
+    ## Recommended Use Cases
+    - If you live in a snowy climate, notify of upcoming overnight snowfall in order to plan for snow removal.
+    - If you have a garden, notify of upcoming rain, or risk of frost/freezing temperatures.
+  domain: automation
+  author: travipross
+  input:
+    alert_triggers:
+      name: Alert Trigger(s)
+      description: The trigger(s) to use for the alert. Recommended to use a schedule or time helper entity.
+      selector:
+        trigger:
+    weather_entity:
+      name: Weather Entity
+      description: The weather entity from which to retrieve [hourly forecast](https://www.home-assistant.io/integrations/weather/#action-weatherget_forecasts).
+      selector:
+        entity:
+          domain: weather
+    notify_service:
+      name: Notify Service
+      description: The service to use for notifications (e.g., notify.<my_notify_service>). **Do not include the `notify.` domain.**
+      selector:
+        text:
+    enable_snow_alert:
+      name: Enable Snow Alerts
+      description: Enable snow alert.
+      default: true
+      selector:
+        boolean: {}
+    enable_rain_alert:
+      name: Enable Rain Alerts
+      description: Enable rain alert.
+      default: true
+      selector:
+        boolean: {}
+    enable_cold_alert:
+      name: Enable Cold Alerts
+      description: Enable cold alert.
+      default: true
+      selector:
+        boolean: {}
+    num_hours_threshold:
+      name: Hours Threshold
+      description: The number of hours the enabled condition(s) must be met in order to warrant an alert.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 24
+          mode: slider
+          step: 1
+    num_hours_to_check:
+      name: Hours to Check
+      description: The number of hours to check in the forecast. **Note:** The maximum number of hours that can be checked is 24, as that is what would typically be returned by the call to fetch the hourly forecast.
+      default: 12
+      selector:
+        number:
+          min: 1
+          max: 24
+          mode: slider
+          step: 1
+    min_temp_threshold:
+      name: Minimum Temperature Threshold
+      description: The minimum temperature threshold for cold alerts (in the unit used by your selected weather entity).
+      default: 0
+      selector:
+        number:
+          min: -50
+          max: 50
+          mode: slider
+          step: 1
+triggers: !input alert_triggers
+conditions: []
+actions:
+  - variables:
+      weather_entity: !input weather_entity
+      temp_unit: "{{ state_attr(weather_entity, 'temperature_unit') }}"
+      notify_group: !input notify_service
+      enable_snow: !input enable_snow_alert
+      enable_rain: !input enable_rain_alert
+      enable_cold: !input enable_cold_alert
+      low_temp_threshold: !input min_temp_threshold
+      num_hours_threshold: !input num_hours_threshold
+      num_hours_lookahead: !input num_hours_to_check
+    alias: Define variables from input params
+  - action: weather.get_forecasts
+    metadata: {}
+    data:
+      type: hourly
+    target:
+      entity_id: "{{ weather_entity }}"
+    response_variable: action_response
+    alias: Get hourly weather for given entity
+  - variables:
+      forecast: >-
+        {{
+        action_response[weather_entity]['forecast'][:num_hours_lookahead]
+        }}
+      datetimes: >-
+        {{ forecast | map(attribute='datetime') | map('as_datetime') |
+        map('as_local') | list }}
+      temps: "{{ forecast | map(attribute='temperature') | list }}"
+      min_temp: "{{ temps | min }}"
+      min_temp_idx: "{{ temps.index(min_temp) }}"
+      min_temp_hour: "{{ forecast[min_temp_idx]['datetime'] | as_datetime | as_local }}"
+      avg_temp: "{{ temps | average | round(1) }}"
+      cold_hours: >-
+        {{ forecast | selectattr('temperature', 'le', low_temp_threshold) | list
+        }}
+      snowy_hours: >-
+        {{ forecast | selectattr('condition', 'search', '(?i)snow|flurr(y|ies)')
+        | list }}
+      rainy_hours: "{{ forecast | selectattr('condition', 'search', '(?i)rain') | list }}"
+      precip_prob_snowy_hours: "{{ snowy_hours | map(attribute='precipitation_probability') | list }}"
+      precip_prob_rainy_hours: "{{ rainy_hours | map(attribute='precipitation_probability') | list }}"
+      cold_alert: "{{ enable_cold and cold_hours | count > num_hours_threshold }}"
+      rain_alert: "{{ enable_rain and rainy_hours | count > num_hours_threshold }}"
+      snow_alert: "{{ enable_snow and snowy_hours | count > num_hours_threshold }}"
+    alias: Parse response and define new variables
+  - alias: If any weather conditions warrant notification
+    condition: template
+    value_template: "{{ cold_alert or rain_alert or snow_alert }}"
+  - variables:
+      notification_message: >
+        {% macro format_datetime(d) %}{{ d | as_timestamp |
+        timestamp_custom("%I:%M %p") }}{% endmacro %} Over the next {{
+        num_hours_lookahead }} hours:
+
+
+        {% if cold_alert %} Temperature: Temps will dip below {{
+        low_temp_threshold }}{{ temp_unit }} for {{ cold_hours | count }} hours,
+        initially reaching a minimum of {{ min_temp }}{{ temp_unit }} at
+        {{format_datetime(min_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).
+        {%endif %}
+
+
+        {% if rain_alert %} Rain: It will be rainy for {{ rainy_hours | count }}
+        hours (max_prob={{ (precip_prob_rainy_hours or [0]) | max }}%,
+        avg_prob={{(precip_prob_rainy_hours or [0]) | average }}%). {% endif %}
+
+
+        {% if snow_alert %} Snow: It will be snowy for {{ snowy_hours | count }}
+        hours (max_prob={{ (precip_prob_snowy_hours or [0]) | max }}%,
+        avg_prob={{(precip_prob_snowy_hours or [0]) | average }}%). {% endif %}
+      notification_title: >-
+        Weather alert: {{ ["Temperature" if cold_alert, "Rain" if rain_alert,
+        "Snow" if snow_alert] | select() | join(", ") }}
+  - action: notify.{{ notify_group }}
+    metadata: {}
+    data:
+      message: >
+        {% macro format_datetime(d) %}{{ d | as_timestamp | timestamp_custom("%I:%M
+        %p") }}{% endmacro %} Over the next {{ num_hours_lookahead }} hours:
+
+        {% if cold_alert %} 
+        
+        Temperature: Temps will dip below {{ low_temp_threshold
+        }}{{ temp_unit }} for {{ cold_hours | count }} hours, initially reaching a
+        minimum of {{ min_temp }}{{ temp_unit }} at
+        {{format_datetime(min_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).
+        
+        {%endif %}
+        {% if rain_alert %} 
+        
+        Rain: It will be rainy for {{ rainy_hours | count }}
+        hours (max_prob={{ (precip_prob_rainy_hours or [0]) | max }}%,
+        avg_prob={{(precip_prob_rainy_hours or [0]) | average }}%). 
+        {% endif %}
+        {% if snow_alert %} 
+        
+        Snow: It will be snowy for {{ snowy_hours | count }}
+        hours (max_prob={{ (precip_prob_snowy_hours or [0]) | max }}%,
+        avg_prob={{(precip_prob_snowy_hours or [0]) | average }}%).
+        {% endif %}
+      title: >
+        Weather alert: {{ ["Temperature" if cold_alert, "Rain" if rain_alert,
+        "Snow" if snow_alert] | select() | join(", ") }}
+      data:
+        ttl: 0
+        priority: high
+        tag: WEATHER_ALERT
+        sticky: true
+        clickAction: entityId:{{ weather_entity }}
+        notification_icon: mdi:weather-cloudy-alert
+mode: single
