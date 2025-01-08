@@ -262,7 +262,7 @@ actions:
                     title: Dock
                 tag: "{{ notify_tag }}"
                 sticky: true
-                persistent: true
+                persistent: false
                 notification_icon: mdi:robot-vacuum
                 clickAction: entityId:{{ vacuum_entity_id }}
             alias: Send "Running" notification
@@ -305,7 +305,7 @@ actions:
                     title: Dock
                 tag: "{{ notify_tag }}"
                 sticky: true
-                persistent: true
+                persistent: false
                 notification_icon: mdi:robot-vacuum
                 clickAction: entityId:{{ vacuum_entity_id }}
             alias: Send "Paused" notification
@@ -336,7 +336,7 @@ actions:
                     title: Snooze
                 tag: "{{ notify_tag }}"
                 sticky: true
-                persistent: true
+                persistent: false
                 notification_icon: mdi:robot-vacuum
                 clickAction: entityId:{{ vacuum_entity_id }}
             alias: Send "Returning" notification
@@ -418,7 +418,7 @@ actions:
                     title: Dock
                 tag: "{{ notify_tag }}"
                 sticky: true
-                persistent: true
+                persistent: false
                 notification_icon: mdi:robot-vacuum
                 clickAction: entityId:{{ vacuum_entity_id }}
             alias: Send "Paused" notification
@@ -467,7 +467,7 @@ actions:
                     title: Dock
                 tag: "{{ notify_tag }}"
                 sticky: true
-                persistent: true
+                persistent: false
                 notification_icon: mdi:robot-vacuum
                 clickAction: entityId:{{ vacuum_entity_id }}
             alias: Send "Paused" notification
