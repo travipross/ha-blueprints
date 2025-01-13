@@ -170,34 +170,18 @@ actions:
     condition: template
     value_template: "{{ cold_alert or rain_alert or snow_alert or hot_alert}}"
   - variables:
-      notification_message: >
-        {% macro format_datetime(d) %}{{ d | as_timestamp |
-        timestamp_custom("%I:%M %p") }}{% endmacro %} Over the next {{
-        num_hours_lookahead }} hours:
-
-
-        {% if cold_alert %} Temperature: Temps will dip below {{
-        low_temp_threshold }}{{ temp_unit }} for {{ cold_hours | count }} hours,
-        initially reaching a minimum of {{ min_temp }}{{ temp_unit }} at
-        {{format_datetime(min_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).
-        {%endif %}
-
-
-        {% if hot_alert %} Temperature: Temps will rise_above {{
-        high_temp_threshold }}{{ temp_unit }} for {{ hot_hours | count }} hours,
-        initially reaching a maximum of {{ max_temp }}{{ temp_unit }} at
-        {{format_datetime(max_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).
-        {%endif %}
-
-
-        {% if rain_alert %} Rain: It will be rainy for {{ rainy_hours | count }}
-        hours (max_prob={{ (precip_prob_rainy_hours or [0]) | max }}%,
-        avg_prob={{(precip_prob_rainy_hours or [0]) | average }}%). {% endif %}
-
-
-        {% if snow_alert %} Snow: It will be snowy for {{ snowy_hours | count }}
-        hours (max_prob={{ (precip_prob_snowy_hours or [0]) | max }}%,
-        avg_prob={{(precip_prob_snowy_hours or [0]) | average }}%). {% endif %}
+      notification_message: |
+        {% macro format_datetime(d) %}{{ d | as_timestamp | timestamp_custom("%I:%M %p") }}{% endmacro %}
+        
+        Over the next {{ num_hours_lookahead }} hours:
+        {% if cold_alert %}
+        Temperature: Temps will dip below {{ low_temp_threshold }}{{ temp_unit }} for {{ cold_hours | count }} hours, initially reaching a minimum of {{ min_temp }}{{ temp_unit }} at {{format_datetime(min_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).{%endif%}
+        {%- if hot_alert %}
+        Temperature: Temps will rise_above {{ high_temp_threshold }}{{ temp_unit }} for {{ hot_hours | count }} hours, initially reaching a maximum of {{ max_temp }}{{ temp_unit }} at {{format_datetime(max_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).{%endif%}
+        {%- if rain_alert %}
+        Rain: It will be rainy for {{ rainy_hours | count }} hours (max_prob={{ (precip_prob_rainy_hours or [0]) | max }}%, avg_prob={{(precip_prob_rainy_hours or [0]) | average | round(1) }}%). {% endif%}
+        {%- if snow_alert %}
+        Snow: It will be snowy for {{ snowy_hours | count }} hours (max_prob={{ (precip_prob_snowy_hours or [0]) | max }}%, avg_prob={{(precip_prob_snowy_hours or [0]) | average | round(1) }}%). {% endif%}
       notification_title: >-
         Weather alert: {{ ["Temperature" if (cold_alert or hot_alert), "Rain" if rain_alert,
         "Snow" if snow_alert] | select() | join(", ") }}
