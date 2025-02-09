@@ -1,0 +1,126 @@
+blueprint:
+  name: Motion Sensor Light with Initial State Memory
+  description: > 
+    ## Description
+
+    Turn on a light when motion is detected. When motion is no longer detected, the light is either turned off or is returned to 
+    its initial state.
+
+    If the "Wait time" value is set, the automation will wait the specified amount of seconds after motion is no longer detected
+    before returning the light to its previous state.
+
+    ## Options
+
+      - Wait Time: If set, the automation will wait the specified amount of seconds after motion is no longer detected
+        before returning the light to its previous state. Setting this value to `0` will result in the light being immediately
+        turned off after motion stops.
+      
+      - State Memory: If enabled, the light is returned to its initial state when motion is no longer detected.
+
+    ## Use Case
+
+    The default Motion Activated Light blueprint included by default with Home Assistant operates such that the target light will
+    be turned off regardless of the state it was in at the time of motion starting. 
+    
+    Consider a scenario where you have a hallway night light that is normally enabled only when motion is detected. If you wished 
+    to leave the light on all night on some given day, and you were the default blueprint. If motion were detected at any point in
+    the night, the light would then be turned off after motion stops.
+
+    By using this blueprint, you can choose to have the light return to its original state (i.e. on) when motion is no longer detected.
+
+    ## State Memory Behaviour
+
+    The following table indicates the effect that state memory has on the light entity's state.
+
+    - State Memory:`off`, Initial light state:`off` => State after motion stops:`off`
+
+    - State Memory:`off`, Initial light state:`on` => State after motion stops:`off`
+
+    - State Memory:`on`,  Initial light state:`off` => State after motion stops:`off`
+
+    - State Memory:`on`,  Initial light state:`on` => State after motion stops:`on`
+  domain: automation
+  source_url: https://github.com/travipross/ha-blueprints/blob/main/automations/motion-sensor-light-initial-state.yaml
+  author: travipross
+  input:
+    motion_entity:
+      name: Motion Sensor
+      selector:
+        entity:
+          filter:
+            - device_class: occupancy
+              domain: binary_sensor
+            - device_class: motion
+              domain: binary_sensor
+    light_entity:
+      name: Light
+      selector:
+        entity:
+          filter:
+            - domain: light
+    no_motion_wait:
+      name: Wait time
+      description: Time to leave the light on after last motion is detected.
+      default: 120
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+    state_memory:
+      name: State Memory
+      description: Return to the intial state after motion is stopped.
+      default: true
+      selector:
+        boolean:
+    timeout:
+      name: Automation Timeout (Minutes)
+      description: >
+        Amount of time for the automation to wait for motion to stop. If this is exceeded, the automation will abandon any state memory 
+        and wait to run again next time motion is detected.
+      default: 360
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: minutes
+variables:
+  light_entity: !input light_entity
+  state_memory: !input state_memory
+triggers:
+  - trigger: state
+    entity_id:
+      - !input motion_entity
+    from: "off"
+    to: "on"
+conditions: []
+actions:
+  - variables:
+      initial_light_state: "{{ states(light_entity) | bool }}"
+  - action: light.turn_on
+    target:
+      entity_id: !input light_entity
+  - wait_for_trigger:
+      - trigger: state
+        entity_id:
+          - !input motion_entity
+        from: "on"
+        to: "off"
+        for:
+          seconds: !input no_motion_wait
+    continue_on_timeout: false
+    timeout:
+      minutes: !input timeout
+  - if:
+      - condition: not
+        conditions:
+          - and:
+            - condition: template
+              value_template: "{{ initial_light_state }}"
+            - condition: template
+              value_template: "{{ state_memory | bool }}"
+    then:
+      - action: light.turn_off
+        target:
+          entity_id: !input light_entity
+mode: single
