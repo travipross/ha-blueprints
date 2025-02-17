@@ -91,7 +91,6 @@ triggers:
   - trigger: state
     entity_id:
       - !input motion_entity
-    from: "off"
     to: "on"
 conditions: []
 actions:
