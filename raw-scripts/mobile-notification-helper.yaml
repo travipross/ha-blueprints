@@ -6,11 +6,11 @@ fields:
     name: Recipient(s)
     description: >
       Sets the appropriate `notify` service corresponding to the selection (can
-      be individual device or notification group). 
+      be individual device or notification group).
 
 
       Custom entries can be provided to call arbitrary `notify.<custom_entry>`
-      services. 
+      services.
 
 
       https://companion.home-assistant.io/docs/notifications/notifications-basic#sending-notifications-to-multiple-devices
@@ -157,11 +157,18 @@ sequence:
           clickAction: "{{ clickAction }}"
           actions: "{{ actions }}"
           notification_icon: "{{ notification_icon }}"
-          color: "{{ color }}"
+          color: >-
+            {% if color is iterable and color is not string and
+              color | length == 3 -%}
+              {{ '#%02x%02x%02x' % (color[0], color[1], color[2]) }}
+            {%- else -%}
+              {{ color }}
+            {%- endif %}
           channel: "{{ channel }}"
           group: "{{ group }}"
-          subtitle: "{{ subtitle }}"
-          ttl: "{{  0 if critical else '' }}"
+          subtitle: "{{ subject }}"
+          subject: "{{ subject }}"
+          ttl: "{{ 0 if critical else none }}"
           priority: "{{ 'high' if critical else 'normal' }}"
           alert_once: "{{ alert_once }}"
   - action: notify.{{ notify_service }}
