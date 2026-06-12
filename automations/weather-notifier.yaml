@@ -15,6 +15,7 @@ blueprint:
     2. Filter the result into multiple lists of hourly weather conditions which meet the specified conditions (one list for each condition).
     3. If any of the lists have a length greater than the specified threshold (i.e. the condition was met for the required number of hours), send a notification with the details of the alert(s).
        - The notification will include an alert for any list having a length greater than the threshold.
+    4. (Optional) If an `Additional Action` is provided, it will be executed whenever an alert is triggered.
 
     ## Set-up
     1. Create a [weather entity](https://www.home-assistant.io/integrations/weather/) in Home Assistant.
