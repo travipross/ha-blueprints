@@ -20,6 +20,13 @@ blueprint:
       - State Memory: If enabled, the light is returned to its initial state
         when motion is no longer detected.
 
+      - Time Conditions: If set, the automation will only activate the light
+        within the specified time window.
+
+      - Illuminance: If an illuminance sensor and threshold are provided, the
+        light will only be turned on if the measured lux level is below the
+        specified threshold.
+
     ## Use Case
 
     The default Motion Activated Light blueprint included by default with Home
