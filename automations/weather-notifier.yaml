@@ -109,6 +109,12 @@ blueprint:
           max: 100
           mode: slider
           step: 1
+    additional_action:
+      name: Additional Action
+      description: Optional action to perform when an alert is triggered.
+      default: []
+      selector:
+        action: {}
 triggers: !input alert_triggers
 conditions: []
 actions:
@@ -124,6 +130,7 @@ actions:
       high_temp_threshold: !input max_temp_threshold
       num_hours_threshold: !input num_hours_threshold
       num_hours_lookahead: !input num_hours_to_check
+      additional_action: !input additional_action
     alias: Define variables from input params
   - action: weather.get_forecasts
     metadata: {}
@@ -172,7 +179,7 @@ actions:
   - variables:
       notification_message: |
         {% macro format_datetime(d) %}{{ d | as_timestamp | timestamp_custom("%I:%M %p") }}{% endmacro %}
-        
+
         Over the next {{ num_hours_lookahead }} hours:
         {% if cold_alert %}
         Temperature: Temps will dip below {{ low_temp_threshold }}{{ temp_unit }} for {{ cold_hours | count }} hours, initially reaching a minimum of {{ min_temp }}{{ temp_unit }} at {{format_datetime(min_temp_hour)}} (avg={{ avg_temp }}{{ temp_unit }}).{%endif%}
@@ -189,7 +196,7 @@ actions:
     metadata: {}
     data:
       message: "{{ notification_message }}"
-      title:  "{{ notification_title }}"
+      title: "{{ notification_title }}"
       data:
         ttl: 0
         priority: high
@@ -197,4 +204,10 @@ actions:
         sticky: true
         clickAction: entityId:{{ weather_entity }}
         notification_icon: mdi:weather-cloudy-alert
+  - alias: Execute additional action
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ additional_action | length > 0 }}"
+        sequence: !input additional_action
 mode: single
